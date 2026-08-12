@@ -1,4 +1,4 @@
-FROM php:8.2-fpm-alpine
+FROM php:8.3-fpm-alpine
 
 # Install ekstensi sistem & driver PostgreSQL
 RUN apk add --no-cache \
