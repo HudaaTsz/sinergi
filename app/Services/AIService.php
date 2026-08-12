@@ -11,17 +11,35 @@ use App\Models\Transaksi;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
+/**
+ * AIService
+ * ---------
+ * Chat/generate jawaban -> Groq API (cloud, gratis dengan rate limit,
+ * format kompatibel OpenAI).
+ * RAG embeddings -> tetap lewat Ollama lokal (Groq tidak punya endpoint
+ * embeddings). Kalau Ollama tidak tersedia, RAG otomatis di-skip tanpa
+ * mengganggu fitur chat/tool-calling utama.
+ */
 class AIService
 {
-    protected string $baseUrl;
-    protected string $model;
+    // Groq (chat/generate)
+    protected string $groqUrl;
+    protected string $groqApiKey;
+    protected string $groqModel;
+
+    // Ollama (khusus embeddings utk RAG dokumen)
+    protected string $ollamaUrl;
     protected string $embedModel;
 
     public function __construct()
     {
-        $this->baseUrl = rtrim(config('services.ollama.url', env('OLLAMA_URL', 'http://localhost:11434')), '/');
-        $this->model = config('services.ollama.model', env('OLLAMA_MODEL', 'qwen2.5'));
+        $this->groqUrl = rtrim(config('services.groq.url', 'https://api.groq.com/openai/v1'), '/');
+        $this->groqApiKey = config('services.groq.api_key', env('GROQ_API_KEY', ''));
+        $this->groqModel = config('services.groq.model', env('GROQ_MODEL', 'llama-3.3-70b-versatile'));
+
+        $this->ollamaUrl = rtrim(config('services.ollama.url', env('OLLAMA_URL', 'http://localhost:11434')), '/');
         $this->embedModel = config('services.ollama.embed_model', env('OLLAMA_EMBED_MODEL', 'nomic-embed-text'));
     }
 
@@ -148,6 +166,12 @@ PROMPT;
         };
     }
 
+    /**
+     * RAG dokumen: tetap butuh embeddings dari Ollama lokal (Groq tidak
+     * punya endpoint embeddings). Kalau Ollama tidak jalan/gagal, method ini
+     * mengembalikan array kosong secara diam-diam — chat tetap jalan normal
+     * tanpa konteks dokumen, bukan error.
+     */
     protected function cariKonteksDokumen(string $pertanyaan, int $topK = 4): array
     {
         $embedding = $this->embed($pertanyaan);
@@ -155,15 +179,20 @@ PROMPT;
 
         $vectorLiteral = '[' . implode(',', $embedding) . ']';
 
-        $rows = DB::select("
-            SELECT dc.isi_teks, d.judul, d.tipe,
-                   1 - (dc.embedding <=> ?::vector) AS similarity
-            FROM dokumen_chunks dc
-            JOIN dokumen d ON d.id = dc.dokumen_id
-            WHERE d.untuk_ai_knowledge_base = true
-            ORDER BY dc.embedding <=> ?::vector
-            LIMIT ?
-        ", [$vectorLiteral, $vectorLiteral, $topK]);
+        try {
+            $rows = DB::select("
+                SELECT dc.isi_teks, d.judul, d.tipe,
+                       1 - (dc.embedding <=> ?::vector) AS similarity
+                FROM dokumen_chunks dc
+                JOIN dokumen d ON d.id = dc.dokumen_id
+                WHERE d.untuk_ai_knowledge_base = true
+                ORDER BY dc.embedding <=> ?::vector
+                LIMIT ?
+            ", [$vectorLiteral, $vectorLiteral, $topK]);
+        } catch (\Throwable $e) {
+            Log::warning('RAG cariKonteksDokumen gagal: ' . $e->getMessage());
+            return [];
+        }
 
         return [
             'chunks' => collect($rows)->pluck('isi_teks')->all(),
@@ -188,24 +217,11 @@ PROMPT;
         }
     }
 
-    /**
-     * Format angka mentah jadi teks Rupiah SEBELUM dikirim ke model AI.
-     * Ini krusial: model AI lokal (qwen2.5) sering salah menerjemahkan
-     * angka mentah besar jadi kalimat Rupiah (mis. 8260000 dibaca "826 juta").
-     * Dengan format ini, model tinggal MENYALIN string yang sudah benar,
-     * bukan menghitung/menerjemahkan sendiri.
-     */
     protected function formatRupiah(int|float $angka): string
     {
         return 'Rp' . number_format($angka, 0, ',', '.');
     }
 
-    /**
-     * Format rekursif: ubah semua nilai numerik yang tampak seperti nominal
-     * uang (int/float) jadi string Rupiah yang sudah jadi, di semua level
-     * array/object hasil tool call, supaya model AI tidak perlu mengonversi
-     * angka mentah sendiri.
-     */
     protected function formatDataUntukPrompt(mixed $data): mixed
     {
         if (is_float($data) || (is_int($data) && abs($data) >= 1000)) {
@@ -258,31 +274,54 @@ Pengguna saat ini: {$user->nama} ({$user->jabatan})
 PROMPT;
     }
 
+    /**
+     * Generate jawaban lewat Groq (format chat completions kompatibel OpenAI).
+     */
     protected function generate(string $systemPrompt, string $userMessage, float $temperature = 0.4): string
     {
-        $response = Http::timeout(60)->post("{$this->baseUrl}/api/chat", [
-            'model' => $this->model,
-            'stream' => false,
-            'options' => ['temperature' => $temperature],
-            'messages' => [
-                ['role' => 'system', 'content' => $systemPrompt],
-                ['role' => 'user', 'content' => $userMessage],
-            ],
-        ]);
-
-        if (!$response->successful()) {
-            return 'Maaf, layanan AI sedang tidak dapat diakses. Pastikan Ollama berjalan (ollama serve).';
+        if (empty($this->groqApiKey)) {
+            return 'Maaf, layanan AI belum dikonfigurasi. Pastikan GROQ_API_KEY sudah diisi di file .env.';
         }
 
-        return $response->json('message.content', '');
+        try {
+            $response = Http::timeout(60)
+                ->withToken($this->groqApiKey)
+                ->post("{$this->groqUrl}/chat/completions", [
+                    'model' => $this->groqModel,
+                    'temperature' => $temperature,
+                    'messages' => [
+                        ['role' => 'system', 'content' => $systemPrompt],
+                        ['role' => 'user', 'content' => $userMessage],
+                    ],
+                ]);
+        } catch (\Throwable $e) {
+            Log::error('Groq request gagal: ' . $e->getMessage());
+            return 'Maaf, layanan AI sedang tidak dapat diakses. Coba lagi sebentar lagi.';
+        }
+
+        if (!$response->successful()) {
+            Log::error('Groq response error: ' . $response->status() . ' ' . $response->body());
+            return 'Maaf, layanan AI sedang tidak dapat diakses (kode: ' . $response->status() . ').';
+        }
+
+        return $response->json('choices.0.message.content', '');
     }
 
+    /**
+     * Embeddings tetap lewat Ollama lokal (Groq tidak menyediakan endpoint
+     * embeddings). Kalau Ollama tidak tersedia/gagal, return null diam-diam
+     * — dipakai oleh cariKonteksDokumen() untuk skip RAG dengan aman.
+     */
     protected function embed(string $text): ?array
     {
-        $response = Http::timeout(30)->post("{$this->baseUrl}/api/embeddings", [
-            'model' => $this->embedModel,
-            'prompt' => $text,
-        ]);
+        try {
+            $response = Http::timeout(15)->post("{$this->ollamaUrl}/api/embeddings", [
+                'model' => $this->embedModel,
+                'prompt' => $text,
+            ]);
+        } catch (\Throwable $e) {
+            return null;
+        }
 
         return $response->successful() ? $response->json('embedding') : null;
     }
