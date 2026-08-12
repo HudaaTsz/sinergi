@@ -23,7 +23,13 @@ RUN composer install --no-dev --optimize-autoloader --ignore-platform-reqs
 # Atur hak akses folder storage Laravel agar tidak error 500
 RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
 
+COPY .docker/entrypoint.sh /usr/local/bin/entrypoint.sh
+
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
 EXPOSE 80
 
-CMD ["/usr/bin/supervisord", "-c", "/etc/supervisord.conf"]
+CMD ["/usr/local/bin/entrypoint.sh"]
+
+
 
