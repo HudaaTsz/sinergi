@@ -10,6 +10,8 @@ use App\Http\Controllers\Api\LaporanController;
 use App\Http\Controllers\Api\MasterDataController;
 use App\Http\Controllers\Api\PengajuanDanaController;
 use App\Http\Controllers\Api\TransaksiController;
+use App\Http\Controllers\Api\KategoriKasController;
+use App\Http\Controllers\Api\ProfileController;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/login', [AuthController::class, 'login']);
@@ -17,11 +19,14 @@ Route::post('/login', [AuthController::class, 'login']);
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/me', [AuthController::class, 'me']);
+    Route::post('/me/password', [ProfileController::class, 'updatePassword']);
 
     Route::get('/dashboard', [DashboardController::class, 'index']);
 
     // Master data (dropdown form transaksi, dll)
     Route::get('/master/kategori-kas', [MasterDataController::class, 'kategoriKas']);
+    Route::post('/kategori-kas', [KategoriKasController::class, 'store'])
+        ->middleware('role:Ketua|Bendahara|Super Admin');
     Route::get('/master/dompet-kas', [MasterDataController::class, 'dompetKas']);
 
     // Anggota (akun login sistem / "Akun Intern") — hanya pengurus yang boleh lihat & kelola
@@ -32,6 +37,8 @@ Route::middleware('auth:sanctum')->group(function () {
         ->middleware('role:Super Admin|Sekretaris');
     Route::post('/anggota/{anggota}/foto', [AnggotaController::class, 'uploadFoto'])
         ->middleware('role:Super Admin|Sekretaris');
+    Route::post('/anggota/{anggota}/reset-password', [AnggotaController::class, 'resetPassword'])
+        ->middleware('role:Super Admin');
 
     // Anggota Iuran ("Akun Extern") — SEMUA role login (termasuk Anggota) boleh lihat.
     // Tambah/edit/hapus dibatasi ke Bendahara/Super Admin.

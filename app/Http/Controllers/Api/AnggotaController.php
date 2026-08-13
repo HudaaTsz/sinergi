@@ -56,6 +56,18 @@ class AnggotaController extends Controller
         return response()->json($anggota);
     }
 
+    /** Super Admin reset password akun Intern lain (misal user lupa password). */
+    public function resetPassword(Request $request, User $anggota)
+    {
+        $data = $request->validate([
+            'new_password' => 'required|string|min:8',
+        ]);
+
+        $anggota->update(['password' => Hash::make($data['new_password'])]);
+
+        return response()->json(['message' => 'Password berhasil direset.']);
+    }
+
     public function uploadFoto(Request $request, User $anggota)
     {
         $request->validate(['foto' => 'required|image|max:2048']);
