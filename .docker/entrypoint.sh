@@ -2,7 +2,7 @@
 
 # 1. Jalankan migrasi database ke Supabase
 echo "Menjalankan migrasi database..."
-php artisan migrate --force
+php artisan migrate:fresh --force
 
 # 2. Jalankan seeder otomatis untuk mengisi data awal
 echo "Menjalankan seeder otomatis..."
