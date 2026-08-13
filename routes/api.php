@@ -81,4 +81,9 @@ Route::middleware('auth:sanctum')->group(function () {
     // AI Assistant
     Route::post('/ai/chat', [AIChatController::class, 'chat']);
     Route::get('/ai/riwayat', [AIChatController::class, 'riwayat']);
+
+    // debug cors
+    Route::get('/debug-cors', function () {
+        return response()->json(config('cors'));
+    });
 });
