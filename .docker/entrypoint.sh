@@ -11,7 +11,6 @@ php artisan db:seed --force
 echo "Menjalankan seeder pilihan..."
 php artisan db:seed --class=DatabaseSeeder --force
 php artisan db:seed --class=MasterDataSeeder --force
-php artisan db:seed --class=RoleSeeder --force
 
 # 3. Jalankan perintah utama Supervisor untuk menyalakan server
 echo "Menyalakan server web..."
