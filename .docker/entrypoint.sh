@@ -12,6 +12,6 @@ echo "Menjalankan seeder pilihan..."
 php artisan db:seed --class=DatabaseSeeder --force
 php artisan db:seed --class=MasterDataSeeder --force
 
-# 3. Jalankan perintah utama Supervisor untuk menyalakan server
+# 3. Jalankan perintah utama Supervisor untuk menyalakan servera
 echo "Menyalakan server web..."
 exec /usr/bin/supervisord -c /etc/supervisord.conf
