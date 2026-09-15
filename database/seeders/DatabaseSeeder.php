@@ -44,16 +44,21 @@ class DatabaseSeeder extends Seeder
         // Akun contoh tambahan per-role (dari seeder kedua, password: "password123")
         $usersContoh = [
             ['nama' => 'Admin', 'email' => 'admin@sinergi.org', 'role' => 'Super Admin', 'jabatan' => 'Super Admin', 'divisi' => null],
-            ['nama' => 'Thomy Ketua', 'email' => 'thomy@sinergi.org', 'role' => 'Ketua', 'jabatan' => 'Ketua', 'divisi' => null],
-            ['nama' => 'Bhakti Ketua', 'email' => 'bhakti@sinergi.org', 'role' => 'Ketua', 'jabatan' => 'Ketua', 'divisi' => null],
-            ['nama' => 'Ella Bendahara', 'email' => 'ella@sinergi.org', 'role' => 'Bendahara', 'jabatan' => 'Bendahara', 'divisi' => null],
-            ['nama' => 'Kaila Bendahara', 'email' => 'kaila@sinergi.org', 'role' => 'Bendahara', 'jabatan' => 'Bendahara', 'divisi' => null],
-            ['nama' => 'Adel Sekretaris', 'email' => 'adel@sinergi.org', 'role' => 'Sekretaris', 'jabatan' => 'Sekretaris', 'divisi' => null],
-            ['nama' => 'Anggota', 'email' => 'anggota@sinergi.org', 'role' => 'Anggota', 'jabatan' => 'Anggota', 'divisi' => null],
-            ['nama' => 'Auditor', 'email' => 'auditor@sinergi.org', 'role' => 'Auditor', 'jabatan' => 'Auditor', 'divisi' => null],
+            ['nama' => 'Thomy Ketua', 'email' => 'thomy@wadas.org', 'role' => 'Ketua', 'jabatan' => 'Ketua', 'divisi' => null],
+            ['nama' => 'Bhakti Ketua', 'email' => 'bhakti@wadas.org', 'role' => 'Ketua', 'jabatan' => 'Ketua', 'divisi' => null],
+            ['nama' => 'Ella Bendahara', 'email' => 'ella@wadas.org', 'role' => 'Bendahara', 'jabatan' => 'Bendahara', 'divisi' => null],
+            ['nama' => 'Kaila Bendahara', 'email' => 'kaila@wadas.org', 'role' => 'Bendahara', 'jabatan' => 'Bendahara', 'divisi' => null],
+            ['nama' => 'Adel Sekretaris', 'email' => 'adel@wadas.org', 'role' => 'Sekretaris', 'jabatan' => 'Sekretaris', 'divisi' => null],
+            ['nama' => 'Anggota', 'email' => 'anggota@wadas.org', 'role' => 'Anggota', 'jabatan' => 'Anggota', 'divisi' => null],
+            ['nama' => 'Auditor', 'email' => 'auditor@wadas.org', 'role' => 'Auditor', 'jabatan' => 'Auditor', 'divisi' => null],
         ];
 
         $this->buatUser($usersContoh, password: 'password123', prefixNomor: 'A-');
+
+        $this->call([
+            MasterDataSeeder::class,
+            RoleSeeder::class,
+        ]);
     }
 
     /**
